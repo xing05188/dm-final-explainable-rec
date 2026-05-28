@@ -611,8 +611,59 @@ def run_pipeline():
         print(f"  [{name}] took {elapsed:.1f}s")
 
     total = time.time() - t0
-    print_section(f"Pipeline complete in {total:.1f}s")
-    print(f"  Output directory: {CONFIG['data']['output_dir']}")
+    _print_summary(total)
+
+
+def _print_summary(total_seconds: float):
+    """Print a human-readable summary of the pipeline results."""
+    out_dir = Path(CONFIG["data"]["output_dir"])
+    stats_path = out_dir / "stats.json"
+
+    if not stats_path.exists():
+        return
+
+    with open(stats_path, "r") as f:
+        stats = json.load(f)
+
+    user_emb_shape = "N/A"
+    item_emb_shape = "N/A"
+    if (out_dir / "user_emb.npy").exists():
+        user_emb_shape = str(np.load(out_dir / "user_emb.npy").shape)
+    if (out_dir / "item_emb.npy").exists():
+        item_emb_shape = str(np.load(out_dir / "item_emb.npy").shape)
+
+    mins, secs = divmod(int(total_seconds), 60)
+
+    lines = []
+    lines.append("=" * 60)
+    lines.append("  Pipeline Summary")
+    lines.append("=" * 60)
+    lines.append(f"  Total time: {mins} min {secs} sec")
+    lines.append(f"  Output:     {out_dir}")
+    lines.append("")
+    lines.append(f"  {'Metric':<28} {'Value':>12}")
+    lines.append(f"  {'-'*28} {'-'*12}")
+    rows = [
+        ("Users", stats["n_users"]),
+        ("Items", stats["n_items"]),
+        ("Interactions", stats["n_interactions"]),
+        ("Sparsity", f"{stats['sparsity']:.2%}"),
+        ("Avg items per user", stats["avg_items_per_user"]),
+        ("Train interactions", stats["n_train"]),
+        ("Val interactions", stats["n_val"]),
+        ("Test interactions", stats["n_test"]),
+        ("SBERT embedding dims", f"{user_emb_shape} / {item_emb_shape}"),
+    ]
+    for label, value in rows:
+        lines.append(f"  {label:<28} {str(value):>12}")
+
+    for line in lines:
+        print(line)
+
+    summary_path = out_dir / "pipeline_summary.txt"
+    with open(summary_path, "w", encoding="utf-8") as f:
+        f.write("\n".join(lines) + "\n")
+    print(f"\n  Summary saved to: {summary_path}")
 
 
 if __name__ == "__main__":
